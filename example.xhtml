@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+	<head>
+		<meta charset="UTF-8" />
+		<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+		<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+		<script src="https://cdn.jsdelivr.net/npm/leaflet-polylinedecorator@1.6.0/dist/leaflet.polylineDecorator.js"></script>
+		<script src="leaflet.polylineoffsetjoin.js"></script>
+		<title>Leaflet.PolylineOffsetJoin</title>
+	</head>
+	<body>
+		<h1>Leaflet.PolylineOffsetJoin</h1>
+		<p>豐多摩研究所 トップページ <a href="https://ss1.xrea.com/toyotama.g1.xrea.com/index.xhtml">https://ss1.xrea.com/toyotama.g1.xrea.com/index.xhtml</a></p>
+		<p>GitHub Leaflet.PolylineOffsetJoin <a href="https://github.com/toyotamakenkyusyo/Leaflet.PolylineOffsetJoin">https://github.com/toyotamakenkyusyo/Leaflet.PolylineOffsetJoin</a></p>
+		<div id="div_leaflet" style="height: 768px; width: auto; background-color: #FFFFFF;"></div>
+		<script type="text/javascript">
+		//<![CDATA[
+
+f_input_geojson();
+
+async function f_input_geojson(a) {
+	const c_geojson = await ((await (fetch("example.geojson"))).json());
+	
+	const c_offset_scale = 6;
+	const c_join_trim = 1;
+	
+	// 最初と最後の角度を計算する
+	for (const c_feature of c_geojson["features"]) {
+		const c_p0 = c_feature["geometry"]["coordinates"][0];
+		const c_p1 = c_feature["geometry"]["coordinates"][1];
+		const c_p2 = c_feature["geometry"]["coordinates"][c_feature["geometry"]["coordinates"].length - 2];
+		const c_p3 = c_feature["geometry"]["coordinates"][c_feature["geometry"]["coordinates"].length - 1];
+		// 角度は緯度経度から-1倍してSVG（下向き正）に合わせる
+		c_feature["properties"]["start_angle"] = -1 * Math.atan2(c_p1[1] - c_p0[1], (c_p1[0] - c_p0[0]) * Math.cos(c_p0[1] * Math.PI / 180));
+		c_feature["properties"]["end_angle"] = -1 * Math.atan2(c_p3[1] - c_p2[1], (c_p3[0] - c_p2[0]) * Math.cos(c_p3[1] * Math.PI / 180));
+	}
+	
+	// 前後の角度とオフセット幅を取得する
+	const c_string_seq_index = {};
+	for (const c_feature of c_geojson["features"]) {
+		if (c_string_seq_index[c_feature["properties"]["string_id"]] === undefined) {
+			c_string_seq_index[c_feature["properties"]["string_id"]] = {};
+		}
+		c_string_seq_index[c_feature["properties"]["string_id"]][c_feature["properties"]["substr_seq"]] = c_feature;
+	}
+	for (const c_feature of c_geojson["features"]) {
+		const c_pre_feature = c_string_seq_index[c_feature["properties"]["string_id"]][c_feature["properties"]["substr_seq"] - 1];
+		const c_post_feature = c_string_seq_index[c_feature["properties"]["string_id"]][c_feature["properties"]["substr_seq"] + 1];
+		
+		c_feature["properties"]["pre_end_angle"] = null;
+		c_feature["properties"]["pre_offset"] = null;
+		c_feature["properties"]["post_start_angle"] = null;
+		c_feature["properties"]["post_offset"] = null;
+		if (c_pre_feature !== undefined) {
+			c_feature["properties"]["pre_end_angle"] = c_pre_feature["properties"]["end_angle"];
+			c_feature["properties"]["pre_offset"] = c_pre_feature["properties"]["offset"];
+		}
+		if (c_post_feature !== undefined) {
+			c_feature["properties"]["post_start_angle"] = c_post_feature["properties"]["start_angle"];
+			c_feature["properties"]["post_offset"] = c_post_feature["properties"]["offset"];
+		}
+	}
+	
+	// 整数に丸めない（https://github.com/Leaflet/Leaflet/issues/4745）
+	L.Map.include({
+		latLngToLayerPoint: function (latlng) {
+			var projectedPoint = this.project(L.latLng(latlng));
+			return projectedPoint._subtract(this.getPixelOrigin());
+		}
+	});
+	
+	// leaflet関係
+	map = L.map("div_leaflet"); // leafletの読み込み。
+	L.tileLayer("https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png", {opacity: 0.5, attribution: "<a href=\"https://maps.gsi.go.jp/development/ichiran.html\">地理院タイル</a>", mazZoom: 25}).addTo(map); // 背景地図（地理院地図）を表示する。
+	
+	const c_line = L.layerGroup([]).addTo(map);
+	const c_point1 = L.layerGroup([]).addTo(map);
+	const c_point2 = L.layerGroup([]).addTo(map);
+	const c_point3 = L.layerGroup([]).addTo(map);
+	for (const c_feature of c_geojson["features"]) {
+		const c_p = L.polyline(
+			L.GeoJSON.coordsToLatLngs(c_feature["geometry"]["coordinates"], 0), 
+			{
+				"color": "#" + c_feature["properties"]["route_color"],
+				"weight": 3,
+				"opacity": 1,
+				"start_angle": c_feature["properties"]["start_angle"],
+				"end_angle": c_feature["properties"]["end_angle"],
+				"pre_end_angle": c_feature["properties"]["pre_end_angle"],
+				"post_start_angle": c_feature["properties"]["post_start_angle"],
+				"pre_offset": c_offset_scale * c_feature["properties"]["pre_offset"],
+				"post_offset": c_offset_scale * c_feature["properties"]["post_offset"],
+				"offset": c_offset_scale * c_feature["properties"]["offset"],
+				"offset_scale": c_offset_scale,
+				"join_trim": c_offset_scale * c_join_trim
+			}
+		);
+		c_line.addLayer(c_p);
+		
+		if (c_feature["properties"]["from_stop_id"] !== null && c_feature["properties"]["substr_seq"] === 0) {
+			const c_sp2 = L.polylineDecorator(c_p, {patterns: [{offset: '0%', repeat: 0, symbol: L.Symbol.arrowHead({pixelSize: 4, polygon: false, pathOptions: {stroke: true, weight: 3, color: "#FFFF00"}})}]});
+			c_point2.addLayer(c_sp2);
+			const c_sp3 = L.polylineDecorator(c_p, {patterns: [{offset: '0%', repeat: 0, symbol: L.Symbol.arrowHead({pixelSize: 4, polygon: false, pathOptions: {stroke: true, weight: 1, color: "#000000"}})}]});
+			c_point3.addLayer(c_sp3);
+		}
+		if (c_feature["properties"]["from_stop_id"] !== null && c_feature["properties"]["substr_seq"] !== 0) {
+			const c_sp1 = L.polylineDecorator(c_p, {patterns: [{offset: '0%', repeat: 0, symbol: L.Symbol.arrowHead({pixelSize: 4, polygon: false, pathOptions: {stroke: true, weight: 3, color: "#FFFFFF"}})}]});
+			c_point1.addLayer(c_sp1);
+			const c_sp3 = L.polylineDecorator(c_p, {patterns: [{offset: '0%', repeat: 0, symbol: L.Symbol.arrowHead({pixelSize: 4, polygon: false, pathOptions: {stroke: true, weight: 1, color: "#000000"}})}]});
+			c_point3.addLayer(c_sp3);
+		}
+		if (c_feature["properties"]["to_stop_id"] !== null && c_feature["properties"]["substr_seq"] === c_feature["properties"]["substr_cnt"] - 1) {
+			const c_ep2 = L.polylineDecorator(c_p, {patterns: [{offset: '100%', repeat: 0, symbol: L.Symbol.arrowHead({pixelSize: 4, polygon: false, pathOptions: {stroke: true, weight: 3, color: "#FFFF00"}})}]});
+			c_point2.addLayer(c_ep2);
+			const c_ep3 = L.polylineDecorator(c_p, {patterns: [{offset: '100%', repeat: 0, symbol: L.Symbol.arrowHead({pixelSize: 4, polygon: false, pathOptions: {stroke: true, weight: 1, color: "#000000"}})}]});
+			c_point3.addLayer(c_ep3);
+		}
+		
+		/*
+		// 仮
+		if (c_feature["properties"]["to_stop_id"] !== null && c_feature["properties"]["substr_seq"] !== c_feature["properties"]["substr_cnt"] - 1) {
+			const c_ep1 = L.polylineDecorator(c_p, {patterns: [{offset: '100%', repeat: 0, symbol: L.Symbol.arrowHead({pixelSize: 4, polygon: false, pathOptions: {stroke: true, weight: 3, color: "#FFFFFF"}})}]});
+			c_point1.addLayer(c_ep1);
+			const c_ep3 = L.polylineDecorator(c_p, {patterns: [{offset: '100%', repeat: 0, symbol: L.Symbol.arrowHead({pixelSize: 4, polygon: false, pathOptions: {stroke: true, weight: 1, color: "#FF0000"}})}]});
+			c_point3.addLayer(c_ep3);
+		}
+		*/
+	}
+	map.setView([34.75,134], 12);
+}
+
+
+		//]]>
+		</script>
+	</body>
+</html>
