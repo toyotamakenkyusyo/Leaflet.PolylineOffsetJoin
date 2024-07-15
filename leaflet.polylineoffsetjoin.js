@@ -102,7 +102,7 @@
 					l_end_angle_d += Math.PI * 2;
 				}
 				l_end_extend = -1 * a_options["post_offset"] / Math.sin(l_end_angle_d) + a_options["offset"] / Math.tan(l_end_angle_d);
-				if (Math.abs(l_end_angle_d) < Math.PI / 8 || 7 * Math.PI / 8 < Math.abs(l_end_angle_d)) {
+				if (Math.abs(l_end_angle_d) < a_options["min_angle"] || (Math.PI - a_options["min_angle"]) < Math.abs(l_end_angle_d)) {
 					l_end_extend = -1 * a_options["join_trim"];
 					
 					const c_x = -1 * a_options["join_trim"] * Math.cos(a_options["end_angle"]) - a_options["offset"] * Math.sin(a_options["end_angle"]);

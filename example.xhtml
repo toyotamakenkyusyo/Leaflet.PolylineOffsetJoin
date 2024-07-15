@@ -93,7 +93,8 @@ async function f_input_geojson(a) {
 				"post_offset": c_offset_scale * c_feature["properties"]["post_offset"],
 				"offset": c_offset_scale * c_feature["properties"]["offset"],
 				"offset_scale": c_offset_scale,
-				"join_trim": c_offset_scale * c_join_trim
+				"join_trim": c_offset_scale * c_join_trim,
+				"min_angle": Math.PI / 8
 			}
 		);
 		c_line.addLayer(c_p);
