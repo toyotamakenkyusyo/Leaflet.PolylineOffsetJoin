@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+	<head>
+		<meta charset="UTF-8" />
+		<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+		<script src="leaflet.polylineoffsetjoin.js"></script>
+		<title>Leaflet.PolylineOffsetJoinのテスト</title>
+	</head>
+	<body>
+		<h1>Leaflet.PolylineOffsetJoinのテスト</h1>
+		<div style="height: 768px; width: auto;">
+			<svg xmlns="http://www.w3.org/2000/svg" version="1.1" style="width: 1024px; height: 1280px;" width="1024px" height="1280px" viewBox="0 0 1024 1280" id="svg1"></svg>
+		</div>
+		<script type="text/javascript">
+		//<![CDATA[
+
+const c_in = [];
+c_in[0] = [{"x": 4, "y": 4}, {"x": 20, "y": 4}, {"x": 20, "y": 20}, {"x": 4, "y": 20}];
+c_in[1] = [{"x": 4, "y": 4}, {"x": 20, "y": 4}, {"x": 21, "y": 21}, {"x": 19, "y": 20}, {"x": 4, "y": 20}];
+c_in[2] = [{"x": 4, "y": 4}, {"x": 20, "y": 4}, {"x": 21, "y": 22}, {"x": 20, "y": 20}, {"x": 4, "y": 20}];
+c_in[3] = [{"x": 4, "y": 4}, {"x": 20, "y": 4}, {"x": 20, "y": 8}, {"x": 4, "y": 20}];
+c_in[4] = [{"x": 4, "y": 4}, {"x": 20, "y": 4}, {"x": 20, "y": 7}, {"x": 19.5, "y": 8}, {"x": 4, "y": 20}];
+
+const c_out = [];
+for (const c_xy_array of c_in) {
+	c_out.push(L.PolylineOffsetJoin.offsetPointsAlone(c_xy_array, 4));
+}
+for (let i1 = 0; i1 < c_in.length; i1++) {
+	for (const c_xy_array of [c_in[i1], c_out[i1]]) {
+		let l_text = "<path stroke=\"black\" stroke-width=\"1\" fill=\"none\" d=\"";
+		let l_first = true;
+		for (const c_xy of c_xy_array) {
+			if (l_first === true) {
+				l_text += "M";
+				l_first = false;
+			} else {
+				l_text += "L";
+			}
+			l_text += String(c_xy["x"] * 10) + "," + String((c_xy["y"] + i1 * 25) * 10);
+		}
+	    l_text += "\"/>";
+	    document.getElementById("svg1").innerHTML += l_text;
+	}
+}
+
+		//]]>
+		</script>
+	</body>
+</html>

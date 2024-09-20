@@ -16,40 +16,189 @@
 		};
 		
 		c_PolylineOffsetJoin.offsetPointsAlone = function (a_points, a_offset) {
-			const c_offset_points = [];
-			for (let i1 = 0; i1 < a_points.length; i1++) {
-				let l_angle_0 = null;
-				let l_angle_1 = null;
-				if (i1 !== 0) {
-					l_angle_0 = Math.atan2(a_points[i1]["y"] - a_points[i1 - 1]["y"], a_points[i1]["x"] - a_points[i1 - 1]["x"]);
+			const c_offset_lines = [];
+			for (let i1 = 1; i1 < a_points.length; i1++) {
+				c_offset_lines.push({
+					"start_x": a_points[i1 - 1]["x"],
+					"start_y": a_points[i1 - 1]["y"],
+					"start_x_2": null,
+					"start_y_2": null,
+					"start_m": null,
+					"end_x": a_points[i1]["x"],
+					"end_y": a_points[i1]["y"],
+					"end_x_2": null,
+					"end_y_2": null,
+					"end_m": null,
+					"valid": null,
+					"angle": Math.atan2(a_points[i1]["y"] - a_points[i1 - 1]["y"], a_points[i1]["x"] - a_points[i1 - 1]["x"]),
+					"length": ((a_points[i1]["x"] - a_points[i1 - 1]["x"]) ** 2 + (a_points[i1]["y"] - a_points[i1 - 1]["y"]) ** 2) ** 0.5
+				});
+			}
+			// 初回のオフセット計算
+			c_offset_lines[0]["start_x_2"] = c_offset_lines[0]["start_x"] - a_offset * Math.sin(c_offset_lines[0]["angle"]);
+			c_offset_lines[0]["start_y_2"] = c_offset_lines[0]["start_y"] + a_offset * Math.cos(c_offset_lines[0]["angle"]);
+			c_offset_lines[0]["start_m"] = 0;
+			for (let i1 = 1; i1 < c_offset_lines.length; i1++) {
+				f_offset_point(c_offset_lines[i1 - 1], c_offset_lines[i1], a_offset);
+			}
+			c_offset_lines[c_offset_lines.length - 1]["end_x_2"] = c_offset_lines[c_offset_lines.length - 1]["end_x"] - a_offset * Math.sin(c_offset_lines[c_offset_lines.length - 1]["angle"]);
+			c_offset_lines[c_offset_lines.length - 1]["end_y_2"] = c_offset_lines[c_offset_lines.length - 1]["end_y"] + a_offset * Math.cos(c_offset_lines[c_offset_lines.length - 1]["angle"]);
+			c_offset_lines[c_offset_lines.length - 1]["end_m"] = 0;
+			// valid判定
+			for (let i1 = 0; i1 < c_offset_lines.length; i1++) {
+				if (c_offset_lines[i1]["start_m"] < c_offset_lines[i1]["length"] + c_offset_lines[i1]["end_m"]) {
+					c_offset_lines[i1]["valid"] = true;
+				} else {
+					c_offset_lines[i1]["valid"] = false;
 				}
-				if (i1 !== a_points.length - 1) {
-					l_angle_1 = Math.atan2(a_points[i1 + 1]["y"] - a_points[i1]["y"], a_points[i1 + 1]["x"] - a_points[i1]["x"]);
+			}
+			
+			// 逆転の除去
+			// 「A new offset algorithm for closed 2D lines with Islands」の方法
+			for (let i1 = 0; i1 < c_offset_lines.length - 1; i1++) {
+				if (c_offset_lines[i1]["valid"] === false) {
+					continue;
 				}
-				if (l_angle_0 === null) {
-					l_angle_0 = l_angle_1;
+				let l_last = null;
+				for (let i2 = i1 + 1; i2 < c_offset_lines.length; i2++) {
+					if (c_offset_lines[i2]["valid"] === true) {
+						l_last = i2;
+						break;
+					}
 				}
-				if (l_angle_1 === null) {
-					l_angle_1 = l_angle_0;
+				if (l_last === null) { // 以降にvalidがない場合
+					break;
 				}
+				// 除外する線分を特定
+				const c_delete_index = [];
+				if (i1 + 2 === l_last) { // 1個だけ逆転
+					c_delete_index.push(i1 + 1);
+				} else if (i1 + 2 < l_last) { // 複数個逆転
+					for (let i2 = l_last - 1; i2 > i1; i2--) { // 除外する都合で逆順
+						if (f_check_intersection(c_offset_lines[i1]["start_x_2"], c_offset_lines[i1]["start_y_2"], c_offset_lines[i1]["end_x_2"], c_offset_lines[i1]["end_y_2"], c_offset_lines[i2]["start_x"], c_offset_lines[i2]["start_y"], c_offset_lines[i2]["end_x"], c_offset_lines[i2]["end_y"]) === true) {
+							continue;
+						}
+						if (f_check_intersection(c_offset_lines[l_last]["start_x_2"], c_offset_lines[l_last]["start_y_2"], c_offset_lines[l_last]["end_x_2"], c_offset_lines[l_last]["end_y_2"], c_offset_lines[i2]["start_x"], c_offset_lines[i2]["start_y"], c_offset_lines[i2]["end_x"], c_offset_lines[i2]["end_y"]) === true) {
+							continue;
+						}
+						// validな前後のオフセット後の線分と交差しない
+						c_delete_index.push(i2);
+					}
+				}
+				if (c_delete_index.length === 0) { // 逆転がない場合、除外する線がない場合、次に進める
+					continue;
+				}
+				// 線分を除去
+				for (let i2 = 0; i2 < c_delete_index.length; i2++) {
+					c_offset_lines.splice(c_delete_index[i2], 1);
+					l_last -= 1;
+				}
+				// 再度オフセット
+				for (let i2 = i1; i2 < l_last; i2++) {
+					f_offset_point(c_offset_lines[i2], c_offset_lines[i2 + 1], a_offset);
+				}
+				// 再度valid判定
+				for (let i2 = i1; i2 <= l_last; i2++) {
+					if (c_offset_lines[i2]["start_m"] < c_offset_lines[i2]["length"] + c_offset_lines[i2]["end_m"]) {
+						c_offset_lines[i2]["valid"] = true;
+					} else {
+						c_offset_lines[i2]["valid"] = false;
+					}
+				}
+				i1 -= 1; // 逆転があった場合、再度確認
+			}
+			
+			function f_check_intersection(a_0sx, a_0sy, a_0ex, a_0ey, a_1sx, a_1sy, a_1ex, a_1ey) {
+				return (((a_1sx - a_1ex) * (a_0sy - a_1sy) + (a_1sy - a_1ey) * (a_1sx - a_0sx)) * ((a_1sx - a_1ex) * (a_0ey - a_1sy) + (a_1sy - a_1ey) * (a_1sx - a_0ex)) < 0) && (((a_0sx - a_0ex) * (a_1sy - a_0sy) + (a_0sy - a_0ey) * (a_0sx - a_1sx)) * ((a_0sx - a_0ex) * (a_1ey - a_0sy) + (a_0sy - a_0ey) * (a_0sx - a_1ex)) < 0);
+			}
+			
+			function f_intersection_point(a_0sx, a_0sy, a_0ex, a_0ey, a_1sx, a_1sy, a_1ex, a_1ey){
+				const c_0dx = a_0ex - a_0sx;
+				const c_0dy = a_0ey - a_0sy;
+				const c_0 = -1 * c_0dy * a_0sx + c_0dx * a_0sy;
+				const c_1dx = a_1ex - a_1sx;
+				const c_1dy = a_1ey - a_1sy;
+				const c_1 = c_1dy * a_1sx - c_1dx * a_1sy;
+				
+				const c_2 = c_0dx * c_1dy - c_1dx * c_0dy;
+				if(c_2 === 0){ //平行によりうまく求められないとき。
+					return {
+						"x": (a_0ex + a_1sx) * 0.5,
+						"y": (a_0ey + a_1sy) * 0.5,
+						"parallel": true
+					};
+				} else {
+					return {
+						"x": (c_0 * c_1dx + c_1 * c_0dx) / c_2,
+						"y": (c_0dy * c_1 + c_1dy * c_0) / c_2,
+						"parallel": false
+					};
+				}
+			}
+			
+			function f_offset_point(a_line_0, a_line_1, a_offset) {
+				const c_angle_0 = a_line_0["angle"];
+				const c_angle_1 = a_line_1["angle"];
 				// 角度の差
-				let l_angle_d = l_angle_1 - l_angle_0;
+				let l_angle_d = c_angle_1 - c_angle_0;
 				if (Math.PI < l_angle_d) {
 					l_angle_d -= Math.PI * 2;
 				} else if (l_angle_d <= -Math.PI) {
 					l_angle_d += Math.PI * 2;
 				}
 				// 角度の平均
-				let l_angle_m = (l_angle_1 + l_angle_0) / 2;
-				if (l_angle_0 + Math.PI < l_angle_1) {
-					l_angle_m = (l_angle_0 + l_angle_1 - Math.PI * 2) / 2;
-				} else if (l_angle_1 <= l_angle_0 - Math.PI) {
-					l_angle_m = (l_angle_0 + l_angle_1 + Math.PI * 2) / 2;
+				let l_angle_m = (c_angle_1 + c_angle_0) / 2;
+				if (c_angle_0 + Math.PI < c_angle_1) {
+					l_angle_m = (c_angle_0 + c_angle_1 - Math.PI * 2) / 2;
+				} else if (c_angle_1 <= c_angle_0 - Math.PI) {
+					l_angle_m = (c_angle_0 + c_angle_1 + Math.PI * 2) / 2;
 				}
 				const c_offset_2 = a_offset / Math.cos(l_angle_d / 2);
+				// 基準点の計算
+				let l_point_x;
+				let l_point_y;
+				if (a_line_0["end_x"] === a_line_1["start_x"] && a_line_0["end_y"] === a_line_1["start_y"]) {
+					l_point_x = a_line_1["start_x"];
+					l_point_y = a_line_1["start_y"];
+				} else {
+					const c_intersection_point = f_intersection_point(a_line_0["start_x"], a_line_0["start_y"], a_line_0["end_x"], a_line_0["end_y"], a_line_1["start_x"], a_line_1["start_y"], a_line_1["end_x"], a_line_1["end_y"]);
+					a_line_0["end_x"] = c_intersection_point["x"];
+					a_line_0["end_y"] = c_intersection_point["y"];
+					a_line_0["length"] = ((a_line_0["start_x"] - a_line_0["end_x"]) ** 2 + (a_line_0["start_y"] - a_line_0["end_y"]) ** 2) ** 0.5;
+					a_line_1["start_x"] = c_intersection_point["x"];
+					a_line_1["start_y"] = c_intersection_point["y"];
+					a_line_1["length"] = ((a_line_1["start_x"] - a_line_1["end_x"]) ** 2 + (a_line_1["start_y"] - a_line_1["end_y"]) ** 2) ** 0.5;
+					l_point_x = c_intersection_point["x"];
+					l_point_y = c_intersection_point["y"];
+				}
+				// オフセット
+				const c_point_x_2 = l_point_x - c_offset_2 * Math.sin(l_angle_m);
+				const c_point_y_2 = l_point_y + c_offset_2 * Math.cos(l_angle_m);
+				const c_angle_d_2 = (Math.PI - l_angle_d) / 2; // 0以上π未満
+				let l_point_m;
+				if (c_angle_d_2 === 0 || c_angle_d_2 * 2 === Math.PI) {
+					l_point_m = 0;
+				} else {
+					l_point_m = a_offset / c_angle_d_2;
+				}
+				a_line_0["end_x_2"] = c_point_x_2;
+				a_line_0["end_y_2"] = c_point_y_2;
+				a_line_0["end_m"] = -1 * l_point_m;
+				a_line_1["start_x_2"] = c_point_x_2;
+				a_line_1["start_y_2"] = c_point_y_2;
+				a_line_1["start_m"] = l_point_m;
+			}
+			
+			// 出力
+			const c_offset_points = [];
+			c_offset_points.push({
+				"x": c_offset_lines[0]["start_x_2"],
+				"y": c_offset_lines[0]["start_y_2"]
+			});
+			for (let i1 = 0; i1 < c_offset_lines.length; i1++) {
 				c_offset_points.push({
-					"x": a_points[i1]["x"] - c_offset_2 * Math.sin(l_angle_m),
-					"y": a_points[i1]["y"] + c_offset_2 * Math.cos(l_angle_m)
+					"x": c_offset_lines[i1]["end_x_2"],
+					"y": c_offset_lines[i1]["end_y_2"]
 				});
 			}
 			return c_offset_points;
