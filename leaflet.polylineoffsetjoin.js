@@ -179,7 +179,7 @@
 				if (c_angle_d_2 === 0 || c_angle_d_2 * 2 === Math.PI) {
 					l_point_m = 0;
 				} else {
-					l_point_m = a_offset / c_angle_d_2;
+					l_point_m = a_offset / Math.tan(c_angle_d_2);
 				}
 				a_line_0["end_x_2"] = c_point_x_2;
 				a_line_0["end_y_2"] = c_point_y_2;
