@@ -83,7 +83,7 @@ async function f_input_geojson(a) {
 			L.GeoJSON.coordsToLatLngs(c_feature["geometry"]["coordinates"], 0), 
 			{
 				"color": "#" + c_feature["properties"]["route_color"],
-				"weight": 3,
+				"weight": Math.max(1, Math.min(3, c_feature["properties"]["wednesday"] / 8)),
 				"opacity": 1,
 				"start_angle": c_feature["properties"]["start_angle"],
 				"end_angle": c_feature["properties"]["end_angle"],
